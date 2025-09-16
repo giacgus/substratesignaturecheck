@@ -8,6 +8,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-store/
 
+# Output
+output/
+
 # Env/OS
 .env*
 .DS_Store

@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cli.js",
-    "verify": "node dist/cli.js"
+    "verify": "node dist/cli.js",
+    "verify:loose": "mkdir -p output && node dist/cli.js --file ./examples/sample_loose.txt > output/results.json"
   },
   "keywords": [],
   "author": "",
