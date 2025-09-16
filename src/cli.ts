@@ -20,7 +20,8 @@ function printUsage(): void {
 		"- address_or_publicKey: SS58 address or 32-byte public key (hex/base64)\n\n" +
 		"Batch mode:\n" +
 		"  verify --file <path-to-json-array>\n" +
-		"  If no args are provided, defaults to processing examples/batch.json"
+		"  If no args are provided, defaults to processing examples/batch.json\n" +
+		"  Also supports loose format: lines like [message,signature,ss58] without quotes"
 	);
 }
 
@@ -31,6 +32,42 @@ async function verifyOne(messageArg: string, signatureArg: string, addressArg: s
 	const result = signatureVerify(message, signature, signer);
 	const pkHex = "0x" + Buffer.from(result.publicKey).toString("hex");
 	return { ...result, publicKeyHex: pkHex };
+}
+
+function tryParseStrictJson(content: string): Array<[string, string, string]> | null {
+	try {
+		const parsed = JSON.parse(content);
+		if (Array.isArray(parsed) && parsed.every((x) => Array.isArray(x) && x.length === 3)) {
+			return parsed as Array<[string, string, string]>;
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+function parseLooseTriplets(content: string): Array<[string, string, string]> {
+	// Extract inner bracket groups like [a,b,c] even if there is an outer wrapper or missing commas
+	const triplets: Array<[string, string, string]> = [];
+	const regex = /\[([^\[\]]+)\]/g;
+	let match: RegExpExecArray | null;
+	while ((match = regex.exec(content)) !== null) {
+		const inner = match[1];
+		const parts = inner.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
+		if (parts.length === 3) {
+			triplets.push([parts[0], parts[1], parts[2]]);
+		}
+	}
+	if (triplets.length === 0) {
+		throw new Error("Could not parse loose format; expected [message,signature,ss58] lines");
+	}
+	return triplets;
+}
+
+function parseBatchFileContent(content: string): Array<[string, string, string]> {
+	const strict = tryParseStrictJson(content);
+	if (strict) return strict;
+	return parseLooseTriplets(content);
 }
 
 async function runSingle(): Promise<number> {
@@ -63,30 +100,27 @@ async function runBatch(filePath?: string): Promise<number> {
 		return 1;
 	}
 
-	let data: unknown;
+	let content: string;
 	try {
-		const content = fs.readFileSync(resolvedPath, "utf8");
-		data = JSON.parse(content);
+		content = fs.readFileSync(resolvedPath, "utf8");
 	} catch (e) {
-		console.error("Failed to read/parse batch file:", e);
+		console.error("Failed to read batch file:", e);
 		return 1;
 	}
 
-	if (!Array.isArray(data)) {
-		console.error("Batch file must be a JSON array of [message, signature, ss58]");
+	let items: Array<[string, string, string]>;
+	try {
+		items = parseBatchFileContent(content);
+	} catch (e) {
+		console.error("Failed to parse batch file:", e);
 		return 1;
 	}
 
 	const valid: Array<any> = [];
 	const invalid: Array<any> = [];
 
-	for (let i = 0; i < data.length; i++) {
-		const item = (data as any[])[i];
-		if (!Array.isArray(item) || item.length !== 3) {
-			invalid.push({ index: i, error: "Item must be [message, signature, ss58]", item });
-			continue;
-		}
-		const [messageArg, signatureArg, ss58] = item as [string, string, string];
+	for (let i = 0; i < items.length; i++) {
+		const [messageArg, signatureArg, ss58] = items[i];
 		try {
 			const result = await verifyOne(messageArg, signatureArg, ss58);
 			const entry = {
@@ -100,7 +134,7 @@ async function runBatch(filePath?: string): Promise<number> {
 			};
 			(result.isValid ? valid : invalid).push(entry);
 		} catch (e) {
-			invalid.push({ index: i, error: String(e), item });
+			invalid.push({ index: i, error: String(e), item: items[i] });
 		}
 	}
 

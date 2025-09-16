@@ -37,6 +37,45 @@ node dist/cli.js 0x68656c6c6f <signature_base64> <SS58_ADDRESS>
 
 The tool automatically detects the crypto type from the signature and key.
 
+### Batch Usage (files)
+- JSON array format (strict): file contains an array of triplets `[message, signature, ss58]`.
+```json
+[
+  [
+    "0xC1b7685B4D7e7D27fca2637A6396645Be3647b2d",
+    "0x8874cc5c...06ab88",
+    "5DXfbMZVxxwYuy1ZrFxbLnqJjWXSqXfR62Rc5HRVQcpMmW2X"
+  ]
+]
+```
+- Loose format (no quotes, optional commas, each line a bracketed triplet) is also supported:
+```
+[[0xC1b7685B4D7e7D27fca2637A6396645Be3647b2d,0x38502bd4f0...,5F2KNYky1XfrF2nPk9J7VGKNattENsh1ncRvKbHv1VZeW9qF]
+[0x3C7b4Fa85d67DF84b3D41205729AfaE30c1d4f02,0x38502bd4f0...,5F2KNYky1XfrF2nPk9J7VGKNattENsh1ncRvKbHv1VZeW9qF]]
+```
+
+Run on a file:
+```bash
+node dist/cli.js --file path/to/your-file
+```
+- If you run with no args, it defaults to `examples/batch.json`.
+```bash
+node dist/cli.js
+```
+
+Output is printed as JSON to stdout, grouped by validity:
+```json
+{
+  "valid": [ { /* item with isValid=true */ } ],
+  "invalid": [ { /* item with isValid=false or parse errors */ } ]
+}
+```
+- Save output to a file:
+```bash
+node dist/cli.js --file path/to/your-file > results.json
+```
+- Exit codes: 0 if all valid, 2 if at least one invalid, 1 on errors (parse, missing file, etc.).
+
 ### Programmatic usage (optional)
 You can import the CLI file or adapt its core logic. The main call is:
 ```ts
